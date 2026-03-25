@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>SignageOS Player</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',sans-serif}
+
+/* ── Setup screen ── */
+#setup{position:fixed;inset:0;background:#0d1117;display:flex;align-items:center;justify-content:center;z-index:1000}
+.setup-box{background:#161b22;border:1px solid #2a3a55;border-radius:16px;padding:36px 40px;width:420px;max-width:95vw}
+.setup-logo{display:flex;align-items:center;gap:11px;margin-bottom:28px}
+.setup-logo-icon{width:38px;height:38px;background:linear-gradient(135deg,#007aff,#5a4fff);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:#fff}
+.setup-logo-text{font-size:18px;font-weight:800;color:#fff}
+.setup-logo-sub{font-size:11px;color:#3a4a60;font-family:'Courier New',monospace}
+.field-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#4a6090;margin-bottom:5px}
+.field-input{width:100%;background:#0d1117;border:1px solid #2a3a55;border-radius:8px;color:#e0e8ff;padding:10px 13px;font-size:13px;font-family:'Courier New',monospace;margin-bottom:14px;outline:none;transition:border .15s}
+.field-input:focus{border-color:#007aff88}
+.field-input::placeholder{color:#3a4a60}
+.btn-start{width:100%;background:linear-gradient(135deg,#007aff,#5a4fff);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;margin-top:4px;transition:opacity .15s}
+.btn-start:hover{opacity:.88}
+.setup-note{font-size:11px;color:#3a4a60;text-align:center;margin-top:14px;line-height:1.7}
+.setup-err{background:#2a1010;border:1px solid #5a2020;border-radius:7px;color:#ff6b6b;font-size:12px;padding:9px 13px;margin-bottom:12px;display:none}
+
+/* ── Player ── */
+#player{position:fixed;inset:0;background:#000;display:none}
+
+/* slide */
+.slide{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:#000}
+.slide.active{display:flex}
+.slide img{width:100%;height:100%;object-fit:contain}
+.slide video{width:100%;height:100%;object-fit:contain}
+
+/* transizioni */
+@keyframes fadeIn   {from{opacity:0}to{opacity:1}}
+@keyframes slideInR {from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes slideInU {from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes zoomIn   {from{transform:scale(1.08);opacity:0}to{transform:scale(1);opacity:1}}
+.tr-fade   {animation:fadeIn    .7s ease}
+.tr-slideR {animation:slideInR  .6s ease}
+.tr-slideU {animation:slideInU  .6s ease}
+.tr-zoom   {animation:zoomIn    .8s ease}
+
+/* overlay widgets */
+#widgets{position:absolute;inset:0;pointer-events:none;z-index:10}
+
+#clock-widget{position:absolute;top:22px;right:26px;text-align:right;text-shadow:0 2px 8px #000a}
+#clock-time{font-size:52px;font-weight:800;color:#fff;line-height:1;font-family:'Courier New',monospace;letter-spacing:.04em}
+#clock-date{font-size:16px;color:rgba(255,255,255,.7);margin-top:4px;font-weight:600}
+
+#ticker{position:absolute;bottom:0;left:0;right:0;height:42px;background:rgba(0,0,0,.82);display:flex;align-items:center;overflow:hidden}
+#ticker-inner{white-space:nowrap;font-size:15px;font-weight:600;color:#fff;padding-left:100%;animation:tickerScroll 35s linear infinite}
+#ticker-label{position:absolute;left:0;top:0;bottom:0;width:90px;background:#007aff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.08em;z-index:2;flex-shrink:0}
+@keyframes tickerScroll{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+
+/* status bar */
+#statusbar{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,.1)}
+#statusbar-fill{height:100%;background:#007aff;transition:width .3s linear}
+
+/* loading overlay */
+#loading{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:500}
+#loading-spinner{width:48px;height:48px;border:4px solid #1a2a40;border-top-color:#007aff;border-radius:50%;animation:spin .8s linear infinite}
+#loading-text{color:#4a6090;font-size:14px;font-weight:600}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* error overlay */
+#error-overlay{position:fixed;inset:0;background:#0d1117;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:600}
+#error-msg{color:#ff6b6b;font-size:16px;font-weight:600;text-align:center;max-width:400px;line-height:1.6}
+#error-retry{background:#007aff;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;padding:10px 24px;cursor:pointer;margin-top:8px}
+
+/* info badge */
+#info-badge{position:absolute;bottom:50px;left:16px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-size:11px;color:rgba(255,255,255,.5);pointer-events:none;transition:opacity .5s}
+</style>
+</head>
+<body>
+
+<!-- ══ SETUP SCREEN ══════════════════════════════════════════ -->
+<div id="setup">
+  <div class="setup-box">
+    <div class="setup-logo">
+      <div class="setup-logo-icon">S</div>
+      <div>
+        <div class="setup-logo-text">SignageOS Player</div>
+        <div class="setup-logo-sub">v5.0 · Android Box Edition</div>
+      </div>
+    </div>
+
+    <div id="setup-err" class="setup-err"></div>
+
+    <div class="field-label">API Key Google Drive *</div>
+    <input class="field-input" id="in-apikey" placeholder="AIzaXXXXXXXXXXXXXXX" autocomplete="off"/>
+
+    <div class="field-label">Cartella root su Drive</div>
+    <input class="field-input" id="in-folder" placeholder="SignageOS" value="SignageOS"/>
+
+    <div class="field-label">Nome di questo schermo *</div>
+    <input class="field-input" id="in-screen" placeholder="es. Vetrina Principale"/>
+
+    <div class="field-label">Polling (minuti)</div>
+    <input class="field-input" id="in-poll" type="number" value="10" min="1" max="60"/>
+
+    <button class="btn-start" onclick="startPlayer()">▶ Avvia Player</button>
+    <div class="setup-note">
+      I parametri vengono salvati sul dispositivo.<br/>
+      La prossima volta si avvia direttamente senza questo schermo.
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOADING ═══════════════════════════════════════════════ -->
+<div id="loading" style="display:none">
+  <div id="loading-spinner"></div>
+  <div id="loading-text">Caricamento playlist…</div>
+</div>
+
+<!-- ══ ERROR ══════════════════════════════════════════════════ -->
+<div id="error-overlay">
+  <div style="font-size:38px">📡</div>
+  <div id="error-msg">Errore di connessione</div>
+  <button id="error-retry" onclick="retryLoad()">Riprova</button>
+</div>
+
+<!-- ══ PLAYER ═════════════════════════════════════════════════ -->
+<div id="player">
+  <div id="statusbar"><div id="statusbar-fill" style="width:0%"></div></div>
+  <div id="slides-container"></div>
+
+  <!-- Widgets overlay -->
+  <div id="widgets">
+    <div id="clock-widget" style="display:none">
+      <div id="clock-time">00:00</div>
+      <div id="clock-date"></div>
+    </div>
+    <div id="ticker" style="display:none">
+      <div id="ticker-label">📰 NEWS</div>
+      <div id="ticker-inner">Caricamento notizie…</div>
+    </div>
+  </div>
+
+  <div id="info-badge"></div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   SIGNAGEOS PLAYER — lettura config.json da Google Drive
+══════════════════════════════════════════════════════════════ */
+
+const STORAGE_KEY = 'signageos_player_config';
+let CONFIG  = null;   // config salvata localmente
+let PLAYLIST = [];    // playlist corrente
+let currentIdx = 0;
+let slideTimer  = null;
+let pollTimer   = null;
+let progressTimer = null;
+
+/* ── Avvio ─────────────────────────────────────────────────── */
+window.onload = () => {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      CONFIG = JSON.parse(saved);
+      document.getElementById('in-apikey').value = CONFIG.apiKey || '';
+      document.getElementById('in-folder').value  = CONFIG.folder || 'SignageOS';
+      document.getElementById('in-screen').value  = CONFIG.screen || '';
+      document.getElementById('in-poll').value    = CONFIG.pollMin || 10;
+      // Auto-avvio se config salvata
+      setTimeout(startPlayer, 300);
+      return;
+    } catch(e) {}
+  }
+  document.getElementById('setup').style.display = 'flex';
+};
+
+function startPlayer() {
+  const apiKey  = document.getElementById('in-apikey').value.trim();
+  const folder  = document.getElementById('in-folder').value.trim() || 'SignageOS';
+  const screen  = document.getElementById('in-screen').value.trim();
+  const pollMin = parseInt(document.getElementById('in-poll').value) || 10;
+
+  if (!apiKey || !screen) {
+    showSetupErr('Inserisci API Key e nome schermo.');
+    return;
+  }
+
+  CONFIG = { apiKey, folder, screen, pollMin };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(CONFIG));
+
+  document.getElementById('setup').style.display   = 'none';
+  document.getElementById('loading').style.display = 'flex';
+
+  loadConfig();
+}
+
+function showSetupErr(msg) {
+  const el = document.getElementById('setup-err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/* ── Carica config.json da Drive ────────────────────────────── */
+async function loadConfig() {
+  showLoading('Ricerca cartella su Drive…');
+  try {
+    // 1. trova la cartella root
+    const rootId = await findFolder(CONFIG.folder, null);
+    if (!rootId) throw new Error(`Cartella "${CONFIG.folder}" non trovata su Drive.`);
+
+    // 2. trova Monitor_NomeSchermo
+    const monFolder = `Monitor_${CONFIG.screen}`;
+    showLoading(`Ricerca ${monFolder}…`);
+    const monId = await findFolder(monFolder, rootId);
+    if (!monId) throw new Error(`Cartella "${monFolder}" non trovata.\nPubblica prima da SignageOS Admin.`);
+
+    // 3. trova config.json
+    showLoading('Caricamento config.json…');
+    const cfgId = await findFile('config.json', monId);
+    if (!cfgId) throw new Error('config.json non trovato. Pubblica da SignageOS Admin.');
+
+    // 4. scarica il contenuto
+    const data = await fetchFileContent(cfgId);
+    const cfg  = JSON.parse(data);
+
+    applyConfig(cfg);
+  } catch(e) {
+    showError(e.message);
+  }
+}
+
+/* ── Drive API calls (solo lettura, API Key basta) ─────────── */
+const BASE = 'https://www.googleapis.com/drive/v3';
+
+async function driveList(q, fields = 'files(id,name)') {
+  const url = `${BASE}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&spaces=drive&key=${CONFIG.apiKey}`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    const e = await r.json();
+    throw new Error('Drive API: ' + (e.error?.message || r.status));
+  }
+  return (await r.json()).files || [];
+}
+
+async function findFolder(name, parentId) {
+  let q = `name='${name.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  if (parentId) q += ` and '${parentId}' in parents`;
+  const files = await driveList(q);
+  return files[0]?.id || null;
+}
+
+async function findFile(name, parentId) {
+  const q = `name='${name}' and '${parentId}' in parents and trashed=false`;
+  const files = await driveList(q);
+  return files[0]?.id || null;
+}
+
+async function fetchFileContent(fileId) {
+  const url = `${BASE}/files/${fileId}?alt=media&key=${CONFIG.apiKey}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Errore download file: ' + r.status);
+  return await r.text();
+}
+
+/* ── Applica config e avvia playlist ────────────────────────── */
+function applyConfig(cfg) {
+  PLAYLIST = (cfg.playlist || []).filter(item => isScheduled(item));
+  if (PLAYLIST.length === 0) {
+    showError('Playlist vuota o nessun elemento in orario adesso.');
+    return;
+  }
+
+  const pollMin = cfg.pollMinutes || CONFIG.pollMin || 10;
+
+  // Attiva widgets
+  if (cfg.widgets?.clock !== false) startClock();
+  if (cfg.widgets?.rss)   startRSS(cfg.widgets.rss);
+
+  // Avvia player
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('player').style.display  = 'block';
+
+  currentIdx = 0;
+  buildSlides();
+  showSlide(0);
+
+  // Polling
+  clearInterval(pollTimer);
+  pollTimer = setInterval(loadConfig, pollMin * 60 * 1000);
+
+  updateBadge(`${CONFIG.screen} · ${PLAYLIST.length} elementi · polling ${pollMin}min`);
+  setTimeout(() => { document.getElementById('info-badge').style.opacity = '0'; }, 5000);
+}
+
+/* ── Controlla orario programmato ────────────────────────────── */
+function isScheduled(item) {
+  const sch = item.schedule;
+  if (!sch || !sch.on) return true;
+  const now  = new Date();
+  const day  = (now.getDay() + 6) % 7; // 0=lun
+  const days = sch.days || [0,1,2,3,4,5,6];
+  if (!days.includes(day)) return false;
+  const [sh, sm] = (sch.start || '00:00').split(':').map(Number);
+  const [eh, em] = (sch.end   || '23:59').split(':').map(Number);
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const s   = sh * 60 + sm;
+  const e   = eh * 60 + em;
+  return cur >= s && cur <= e;
+}
+
+/* ── Build slides DOM ────────────────────────────────────────── */
+function buildSlides() {
+  const container = document.getElementById('slides-container');
+  container.innerHTML = '';
+  PLAYLIST.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'slide';
+    div.id = `slide-${i}`;
+
+    if (item.type === 'image') {
+      const img = document.createElement('img');
+      img.src = item.url || '';
+      img.alt = item.name;
+      div.appendChild(img);
+    } else if (item.type === 'video') {
+      const vid = document.createElement('video');
+      vid.src     = item.url || '';
+      vid.muted   = true;
+      vid.autoplay= false;
+      vid.loop    = false;
+      vid.playsInline = true;
+      div.appendChild(vid);
+    } else {
+      // widget / rss / youtube — placeholder colorato
+      div.style.background = '#0d1117';
+      div.innerHTML = `<div style="text-align:center;color:#4a6090"><div style="font-size:52px;margin-bottom:12px">${typeIcon(item.type)}</div><div style="font-size:18px;font-weight:700;color:#fff">${item.name}</div><div style="font-size:13px;margin-top:6px">${item.type}</div></div>`;
+    }
+    container.appendChild(div);
+  });
+}
+
+function typeIcon(t) {
+  return {image:'🖼',video:'🎬',youtube:'▶',rss:'📡',clock:'🕐',webpage:'🌐'}[t] || '📄';
+}
+
+/* ── Mostra slide ────────────────────────────────────────────── */
+function showSlide(idx) {
+  clearTimeout(slideTimer);
+  clearInterval(progressTimer);
+
+  // Nascondi tutte
+  document.querySelectorAll('.slide').forEach(s => {
+    s.classList.remove('active','tr-fade','tr-slideR','tr-slideU','tr-zoom');
+  });
+
+  const item = PLAYLIST[idx];
+  if (!item) return;
+
+  const slide = document.getElementById(`slide-${idx}`);
+  if (!slide) return;
+
+  // Transizione
+  const trClass = {
+    'Dissolvenza':   'tr-fade',
+    'Scorrimento sx':'tr-slideR',
+    'Scorrimento su':'tr-slideU',
+    'Zoom':          'tr-zoom',
+  }[item.transition] || 'tr-fade';
+
+  slide.classList.add('active', trClass);
+
+  // Progress bar
+  const dur = (item.duration || 10) * 1000;
+  const fill = document.getElementById('statusbar-fill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  requestAnimationFrame(() => {
+    fill.style.transition = `width ${dur}ms linear`;
+    fill.style.width = '100%';
+  });
+
+  // Se video: riproduci e usa la durata reale
+  if (item.type === 'video') {
+    const vid = slide.querySelector('video');
+    if (vid) {
+      vid.currentTime = 0;
+      vid.play().catch(() => {});
+      vid.onended = () => nextSlide();
+      slideTimer = setTimeout(() => nextSlide(), dur + 2000); // fallback
+      return;
+    }
+  }
+
+  slideTimer = setTimeout(() => nextSlide(), dur);
+}
+
+function nextSlide() {
+  currentIdx = (currentIdx + 1) % PLAYLIST.length;
+  // Ri-filtra orari ad ogni ciclo
+  const scheduled = PLAYLIST.filter(item => isScheduled(item));
+  if (scheduled.length !== PLAYLIST.length) {
+    PLAYLIST = scheduled;
+    if (PLAYLIST.length === 0) { loadConfig(); return; }
+    currentIdx = 0;
+    buildSlides();
+  }
+  showSlide(currentIdx);
+}
+
+/* ── Clock widget ────────────────────────────────────────────── */
+function startClock() {
+  const cw   = document.getElementById('clock-widget');
+  const ct   = document.getElementById('clock-time');
+  const cd   = document.getElementById('clock-date');
+  const days = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+  const mons = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  cw.style.display = 'block';
+  const tick = () => {
+    const n = new Date();
+    const hh = String(n.getHours()).padStart(2,'0');
+    const mm = String(n.getMinutes()).padStart(2,'0');
+    const ss = String(n.getSeconds()).padStart(2,'0');
+    ct.textContent = `${hh}:${mm}:${ss}`;
+    cd.textContent = `${days[n.getDay()]} ${n.getDate()} ${mons[n.getMonth()]} ${n.getFullYear()}`;
+  };
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ── RSS Ticker ──────────────────────────────────────────────── */
+async function startRSS(feedUrl) {
+  const ticker = document.getElementById('ticker');
+  const inner  = document.getElementById('ticker-inner');
+  ticker.style.display = 'flex';
+  try {
+    // Usa un CORS proxy pubblico per i feed RSS
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(feedUrl)}`;
+    const r = await fetch(proxy);
+    const data = await r.json();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(data.contents, 'text/xml');
+    const items = [...doc.querySelectorAll('item')].slice(0, 10);
+    if (items.length > 0) {
+      const text = items.map(i => i.querySelector('title')?.textContent || '').filter(Boolean).join('   ·   ');
+      inner.textContent = text;
+    }
+  } catch(e) {
+    inner.textContent = 'Feed RSS non disponibile';
+  }
+}
+
+/* ── Loading / Error helpers ─────────────────────────────────── */
+function showLoading(msg) {
+  document.getElementById('loading').style.display  = 'flex';
+  document.getElementById('loading-text').textContent = msg;
+  document.getElementById('error-overlay').style.display = 'none';
+}
+
+function showError(msg) {
+  document.getElementById('loading').style.display       = 'none';
+  document.getElementById('error-overlay').style.display = 'flex';
+  document.getElementById('error-msg').textContent       = msg;
+}
+
+function retryLoad() {
+  document.getElementById('error-overlay').style.display = 'none';
+  showLoading('Riprovo…');
+  setTimeout(loadConfig, 500);
+}
+
+function updateBadge(msg) {
+  const b = document.getElementById('info-badge');
+  b.textContent = msg;
+  b.style.opacity = '1';
+}
+
+/* ── Rimuovi configurazione salvata (doppio tap angolo) ──────── */
+let tapCount = 0;
+document.addEventListener('click', e => {
+  if (e.clientX < 60 && e.clientY < 60) {
+    tapCount++;
+    if (tapCount >= 5) {
+      tapCount = 0;
+      if (confirm('Resettare configurazione e tornare al setup?')) {
+        localStorage.removeItem(STORAGE_KEY);
+        location.reload();
+      }
+    }
+    setTimeout(() => tapCount = 0, 3000);
+  }
+});
+
+/* ── Fullscreen su tap ───────────────────────────────────────── */
+document.addEventListener('dblclick', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen?.();
+  }
+});
+</script>
+</body>
+</html>
